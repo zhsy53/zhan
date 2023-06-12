@@ -1,16 +1,14 @@
-. $PSScriptRoot\Log.ps1
-
-function cleanDir
+﻿function CleanDir
 {
     param(
         [Parameter(Mandatory)]
         [string]$dir
     )
 
-    Remove-Item -Path "$dir\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $dir\* -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-function deleteFile
+function DeleteFile
 {
     param(
         [Parameter(Mandatory)]
@@ -20,7 +18,7 @@ function deleteFile
     Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue
 }
 
-function readCurrentDirConfFile
+function ReadCurrentDirConfFile
 {
     param(
         [Parameter(Mandatory)]
@@ -29,18 +27,21 @@ function readCurrentDirConfFile
 
     # 空的hash表
     $config = @{ }
+
+
     # $_管道中当前正在处理的对象
     Get-Content (Join-Path $PSScriptRoot $currentDirFilename) |
             Where-Object { $_ -notmatch "^\s*#" } |
             ForEach-Object { $_.split("#")[0].TrimEnd() } |
             ForEach-Object {
-                $key, $value = $_ -split '\s*=\s*', 2
+                $key, $value = $_ -split "\s*=\s*", 2
                 $config[$key] = $value
             }
+
     return $config
 }
 
-function makesureDirExitsAndCleanThenExtract
+function MakesureDirExitsAndCleanThenExtract
 {
     param(
         [Parameter(Mandatory)]
@@ -52,14 +53,14 @@ function makesureDirExitsAndCleanThenExtract
 
     New-Item -ItemType Directory -Force -Path $dir
 
-    cleanDir $dir
+    CleanDir $dir
 
-    log  "解压文件 $zipFile 到 $dir"
-    Expand-Archive  -Force $zipFile -DestinationPath $dir
-    log   "文件$zipFile解压完成`n"
+    Write-Output "expand $zipFile to $dir"
+    Expand-Archive $zipFile -DestinationPath $dir -Force
+    Write-Output "$zipFile expand finished"
 }
 
-function makesureDirExitsThenCompress
+function MakesureDirExitsThenCompress
 {
     param(
         [Parameter(Mandatory)]
@@ -69,25 +70,26 @@ function makesureDirExitsThenCompress
         [String]$zipFile
     )
 
-    deleteFile $zipFile
-
     New-Item -ItemType Directory -Force -Path (Split-Path $zipFile -Parent)
 
-    log   "压缩 $dir 中的文件至 $zipFile"
+    DeleteFile $zipFile
+
+    Write-Output "compress $dir files to $zipFile"
     Compress-Archive -Path $dir\* -DestinationPath $zipFile -Force
-    log   "$dir 中的文件已压缩完成`n"
+    Write-Output "$dir files compress finished"
 }
 
-function rename()
+function RenameFile
 {
     param(
         [Parameter(Mandatory)]
         [String]$file,
-
         [Parameter(Mandatory)]
         [String]$name
     )
+    Write-Output $file
 
-    log "将 $file 重命名为`n$name"
+
+    Write-Output "rename $( Split-Path $file -Leaf ) -> $name"
     Rename-Item -Path $file -NewName $name -Force
 }

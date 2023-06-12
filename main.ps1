@@ -1,93 +1,63 @@
+﻿Param(
+    [Parameter(Mandatory)]
+    [String]$zipFile # C:\Users\zsy\Desktop\随便1_法语_随便2.zip
+)
+
+#$PSDefaultParameterValues['*:Encoding'] = 'UTF8'
+
 . $PSScriptRoot\FileUtils.ps1
-. $PSScriptRoot\Log.ps1
+. $PSScriptRoot\LangUtils.ps1
 
-$zipFileName = "123_法语_456.zip"
-# TODO 配置文件
-$downloadFileDir = "C:\test\home\download"
-$extractedFileDir = "C:\test\home\extracted"
-$compressedFileDir = "C:\test\home\compressed"
+Write-Output "开始 process for $zipFile ..."
+$templateDict = ReadCurrentDirConfFile "conf\template.conf"
+Write-Output "filename mapping dict load finished, entry count: $( $templateDict.Count )"
+$langDict = ReadCurrentDirConfFile "conf\lang.conf"
+Write-Output "lang mapping dict load finished, entry count: $( $langDict.Count )"
+$workDict = ReadCurrentDirConfFile "conf\work.conf"
 
+$extractedFileDir = $workDict["extractedFileDir"]
+$compressedFileDir = $workDict["compressedFileDir"]
 
+$tmpDir = [System.IO.Path]::GetFileNameWithoutExtension($zipFile)
+$extractedFileDir += "\$tmpDir"
+$compressedFileDir += "\$tmpDir"
+Write-Debug "extractedFileDir: $extractedFileDir"
+Write-Debug "compressedFileDir: $compressedFileDir"
 
-function replaceLang
+$lang = ExtractLangAndConvertToEN $zipFile $langDict
+Write-Output "extracted lang: $lang"
+
+MakesureDirExitsAndCleanThenExtract $extractedFileDir $zipFile
+
+$files = Get-ChildItem -Path $extractedFileDir\* -Include *.pdf, *.indd
+
+foreach ($file in $files)
 {
-    param(
-        [Parameter(Mandatory)]
-        [String]$str
-    )
-
-    return $str -replace "lang", $lang
-}
-
-function extractLang
-{
-    param(
-        [Parameter(Mandatory)]
-        [String]$str
-    )
-
-    if ($str -match '_(.+?)_')
+    $newFilename = ""
+    if ($file.Name -like "*.indd")
     {
-        $lang_key = $matches[1]
-        $lang = $langDict[$lang_key]
-
-        log "语言为: $lang_key -> $lang"
-
-        if ($lang -eq 0)
+        $newFilename = $templateDict["indd"]
+    }
+    elseif( $file.Name -like "*.pdf" )
+    {
+        if ($file.Name -like "*线上*")
         {
-            log "$lang_key 未配置相应的英文字典"
-            exit -1
+            $newFilename = $templateDict["online_pdf"]
         }
-
-        return $lang
+        else
+        {
+            $newFilename = $templateDict["pdf"]
+        }
     }
 
-    log "未能提取语言..."
-    exit -1
-}
-
-log "开始执行任务..."
-$templateDict = readCurrentDirConfFile "template.conf"
-log "文件名字典加载完毕"
-$langDict = readCurrentDirConfFile "lang.conf"
-log "语言字典加载完毕"
-
-$lang = extractLang $zipFileName
-
-function renameExtractedFile()
-{
-    $files = Get-ChildItem -Path $extractedFileDir\* -Include *.pdf, *.indd
-    foreach ($file in $files)
+    if (-not($newFilename -eq ""))
     {
-        if ($file -like "*.indd")
-        {
-            rename $file (replaceLang $templateDict["indd"])
-            continue
-        }
-
-        if ($file -like "*.pdf")
-        {
-            if ($file -like "*线上*")
-            {
-                rename $file (replaceLang $templateDict["online_pdf"])
-            }
-            else
-            {
-                rename $file (replaceLang $templateDict["pdf"])
-            }
-        }
+        RenameFile $file (ReplaceLang $newFilename $lang)
     }
+
 }
 
-#
-$zipFile = Join-Path $downloadFileDir $zipFileName
-makesureDirExitsAndCleanThenExtract $extractedFileDir $zipFile
-renameExtractedFile
-#
-$newZipFile = Join-Path $compressedFileDir (replaceLang $templateDict["zip"])
-makesureDirExitsThenCompress $extractedFileDir $newZipFile
+$newZipFile = Join-Path $compressedFileDir (ReplaceLang $templateDict["zip"] $lang)
+MakesureDirExitsThenCompress $extractedFileDir $newZipFile
 
-
-
-
-
+$Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") > $null
